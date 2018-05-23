@@ -1,85 +1,95 @@
 extern crate crypto;
 extern crate chrono;
 
-use crypto::sha2::Sha256;
-use chrono::prelude::*;
+use self::crypto::digest::Digest;
+use self::crypto::sha2::Sha256;
 use std::time::{Duration, Instant};
+use std::cell::{RefCell, Cell};
+
 
 struct Transaction {
     fromAddress: String,
     toAddress:   String,
     amout:       u32
 }
-
-struct Block {
-    previousHash: String,
+#[derive(Clone, Debug)]
+pub struct Block {
+    index:        String,
+    previousHash: RefCell<String>,
+    data:         String,
     timestamp:    String,
-    transactions: Transaction,
-    hash:         Cell<String>,
-    nonce:        Cell<u32>,
+    hash:         RefCell<String>,
 }
 
 impl Block {
-    fn new(previousHash: String, timestamp: String, transactions: Transaction) -> Block {
-        Block {
-            previousHash: previousHash,
-            timestamp:    timestamp,
-            transactions: transactions,
-            hash:         Cell::new(Block::calculateHash()),
-            nonce:        Cell::new(0)
-        }
+    pub fn new(index: &str, timestamp: &str, data: &str, previousHash: &str) -> Block {
+        let newBlock = Block {
+            index:        String::from(index),
+            previousHash: RefCell::new(String::from(previousHash)),
+            data:         String::from(data),            
+            timestamp:    String::from(timestamp),
+            hash:         RefCell::new(String::from("")),
+        };
+
+        newBlock.hash.replace(newBlock.calculateHash());
+        newBlock
     }
 
     fn calculateHash(&self) -> String {
-        let intput = format!(
+        let input = format!(
             "{}{}{}{}",
-            self.previousHash,
+            self.index,
+            self.clone().previousHash.into_inner(),
             self.timestamp,
-            self.transactions,
-            self.nonce.get()
+            self.data
         );
 
         let mut sha = Sha256::new();
-        sha.input_str(input);
+        sha.input_str(&input);
         sha.result_str()
     }
 
-    fn mineBlock(&self, difficulty: u32) {
-        while self.hash[..difficulty] != 0 {
-            self.nonce.set(self.nonce.set + 1);
-            self.hash.set(Block::calculateHash());
-        }
+    // fn mineBlock(&self, difficulty: u32) {
+    //     while self.hash.get()[..difficulty] != 0 {
+    //         self.nonce.set(self.nonce.set + 1);
+    //         self.hash.set(Block::calculateHash());
+    //     }
 
-        println!("Block MINED: {}", self.hash);
-    }
+    //     println!("Block MINED: {}", self.hash);
+    // }
 }
 
-#[derive(Debug)]
-struct Blockchain {
-    chain:               Vec<Block>,
-    difficulty:          u32,
-    pendingTransactions: Vec<_>,
-    miningReward:        u32,
+#[derive(Clone, Debug)]
+pub struct Blockchain {
+    chain: RefCell<Vec<Block>>,
+    // difficulty:          u32,
+    // pendingTransactions: Vec<_>,
+    // miningReward:        u32,
 }
 
 impl Blockchain {
-    fn new(difficulty: u32, miningReward: u32) -> Blockchain {
+    pub fn new() -> Blockchain {
         Blockchain {
-            chain:               Blockchain::createGenesisBlock(),
-            difficulty:          2,
-            pendingTransactions: vec![],
-            miningReward:        100
+            chain: RefCell::new(vec![Blockchain::createGenesisBlock()]), //Blockchain::createGenesisBlock(),
+            // difficulty:          2,
+            // pendingTransactions: vec![],
+            // miningReward:        100
         }
     }
 
-    fn createGenesisBlock() -> Block{
-        let now = Instant::now();
-        Block::new(Instant::now(), vec![], "0");
+    fn createGenesisBlock() -> Block {
+        Block::new("0", "01/01/2017", "Genesis block", "0")
     }
 
-    fn getLatestBlock(&self) -> Vec<Block> {
-        let end = &self.chain.length - 1;
-        self.chain[..end]
+    fn getLatestBlock(&self) -> Block {
+        let cloneChain = self.clone();
+        cloneChain.chain.into_inner().last().unwrap().clone()
+    }
+
+    pub fn addBlock(&self, newBlock: Block) {
+        newBlock.previousHash.replace(self.getLatestBlock().hash.into_inner());
+        newBlock.hash.replace(newBlock.calculateHash());
+        self.chain.borrow_mut().push(newBlock);
     }
 
 }
