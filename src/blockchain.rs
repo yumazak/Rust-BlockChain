@@ -8,30 +8,31 @@ use self::chrono::Utc;
 
 use std::cell::{RefCell};
 use std::fmt;
+
 #[derive(Clone, Debug)]
 pub struct Transaction {
-    fromAddress: String,
-    toAddress:   String,
+    from_address: String,
+    to_address:   String,
     amount:       u32
 }
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{},{},{}", self.fromAddress, self.toAddress, self.amount)
+        write!(f, "{},{},{}", self.from_address, self.to_address, self.amount)
     }
 }
 
 impl Transaction {
-    pub fn new(fromAddress: &str, toAddress: &str, amount: u32) -> Transaction{
+    pub fn new(from_address: &str, to_address: &str, amount: u32) -> Transaction{
         Transaction {
-            fromAddress: String::from(fromAddress),
-            toAddress:   String::from(toAddress),
+            from_address: String::from(from_address),
+            to_address:   String::from(to_address),
             amount:      amount,
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Block {
     previous_hash: RefCell<String>,
     transactions:  RefCell<Vec<Transaction>>,
@@ -40,6 +41,15 @@ pub struct Block {
     nonce:         RefCell<u32>,    
 }
 
+impl fmt::Debug for Block {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "[previous_hash: {}, transactions: {:?}, timestamp: {}, hash: {}, nonce: {}]",
+            self.previous_hash.borrow(), self.transactions.borrow(), self.timestamp, self.hash.borrow(), self.nonce.borrow()
+        )
+    }
+}
 impl Block {
     pub fn new(timestamp: &str, transactions: Vec<Transaction>, previous_hash: &str) -> Block {
         let new_block = Block {
@@ -69,11 +79,13 @@ impl Block {
     }
 
     fn mine_block(&self, difficulty: usize) {
-        let mut difficultyString = String::from("0");
-        for i in 0..difficulty - 1{
-            difficultyString.push_str("0");
+        let mut difficulty_string = String::from("0");
+
+        for _ in 0..difficulty - 1{
+            difficulty_string.push_str("0");
         }
-        while self.hash.borrow().as_str()[..difficulty] != difficultyString {
+
+        while self.hash.borrow().as_str()[..difficulty] != difficulty_string {
             *self.nonce.borrow_mut() += 1;
             self.hash.replace(self.calculate_hash());
         }
@@ -109,7 +121,12 @@ impl Blockchain {
     }
 
     pub fn mine_pending_transactions(&self, mining_reward_address: &str) {
-        let block = Block::new(Utc::now().timestamp().to_string().as_str(), self.pending_transactions.borrow().to_vec(), "");
+        let block = Block::new(
+            Utc::now().to_string().as_str(),
+            self.pending_transactions.borrow().to_vec(),
+            self.get_latest_block().hash.into_inner().as_str()
+        );
+        println!("{}", Utc::now().timestamp());
         block.mine_block(self.difficulty);
 
         println!("Block succesfully mined!");
@@ -127,16 +144,21 @@ impl Blockchain {
 
         for block in self.chain.borrow().iter()  {
             for trans in block.transactions.borrow().iter() {
-                if trans.fromAddress == address {
+                if trans.from_address == address {
                     balance -= trans.amount;
                 }
 
-                if trans.toAddress == address {
+                if trans.to_address == address {
                     balance += trans.amount;
                 }
             }
         }
+
         balance
+    }
+
+    pub fn get_chain(&self) -> Vec<Block> {
+        self.chain.borrow().to_vec()
     }
 
     fn is_chain_valid(&self) -> bool {
@@ -152,8 +174,7 @@ impl Blockchain {
                 return false
             }
         }
+
         true
     }
-    
-
 }

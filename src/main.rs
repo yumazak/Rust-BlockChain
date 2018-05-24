@@ -16,4 +16,8 @@ fn main() {
     coin.mine_pending_transactions("xaviers-address");
 
     println!("\nBalance of xavier is {}", coin.get_balance_of_address("xaviers-address"));
+    println!("{}", coin.get_chain().len());
+    for block in coin.get_chain()  {
+        println!("{:?}", block);
+    }
 }
